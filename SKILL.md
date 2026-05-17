@@ -7,13 +7,82 @@ user-invocable: true
 
 # Skill & Agent Writer
 
-A skill for creating, reviewing, and refactoring high-quality SKILL.md and agent `.md` files for Claude Code. All guidance is based on the official Anthropic skills guide and agent design patterns bundled in the `references/` directory.
+A skill for creating, reviewing, and refactoring high-quality `SKILL.md` and
+agent `.md` files. Skills should follow the Vercel Agent Skills structure: each
+skill is a directory containing `SKILL.md` at its root, with optional
+`scripts/`, `references/`, and `assets/` directories. All guidance is based on
+the bundled Anthropic skills guide, Vercel-style agent skill layout, and agent
+design patterns in the `references/` directory.
+
+## Vercel Skills Layout
+
+Use this structure for skills intended to work with `npx skills add`:
+
+```text
+<skill-name>/
+  SKILL.md
+  scripts/       # optional executable helpers
+  references/    # optional docs loaded as needed
+  assets/        # optional output resources
+```
+
+For a multi-skill collection repository:
+
+```text
+skills/
+  <skill-name>/
+    SKILL.md
+```
+
+For a single-skill repository, the repository root may be the skill root:
+
+```text
+SKILL.md
+scripts/
+references/
+assets/
+```
+
+## `.agents` and Symlink Strategy
+
+The Vercel skills CLI installs skills into a canonical skills directory such as:
+
+```text
+.agents/skills/<skill-name>/
+~/.agents/skills/<skill-name>/
+```
+
+Some agents read `.agents/skills/` directly. Other agents expect their own
+directory, so link the canonical skill instead of duplicating files.
+
+Project-local examples:
+
+```bash
+mkdir -p .agents/skills .claude/skills .codex/skills
+ln -s ../../.agents/skills/<skill-name> .claude/skills/<skill-name>
+ln -s ../../.agents/skills/<skill-name> .codex/skills/<skill-name>
+```
+
+Global examples:
+
+```bash
+mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills
+ln -s ~/.agents/skills/<skill-name> ~/.claude/skills/<skill-name>
+ln -s ~/.agents/skills/<skill-name> ~/.codex/skills/<skill-name>
+```
+
+If a project uses a singular `.agent/` directory instead of `.agents/`, keep the
+same rule: maintain one canonical skill directory and symlink agent-specific
+locations to it. Do not hand-edit duplicate copies.
+
+Prefer symlinks for development because edits remain centralized. Use copy mode
+only when the target agent or environment cannot follow symbolic links.
 
 ## Modes
 
 This skill operates in five modes:
 
-1. **Create Skill** — Interactive wizard that gathers requirements, then generates a complete SKILL.md + SKILL-ko.md pair.
+1. **Create Skill** — Interactive wizard that gathers requirements, then generates a complete Vercel-style skill directory with `SKILL.md` at the root and optional bundled resources.
 2. **Review Skill** — Analyzes an existing SKILL.md against a 10-point quality checklist and produces a scored report.
 3. **Refactor Skill** — Applies review findings to improve an existing SKILL.md while preserving its original intent.
 4. **Create Agent** — Interactive wizard that gathers requirements, then generates an agent `.md` file following project patterns.
@@ -69,7 +138,7 @@ Use the AskUserQuestion tool to collect:
 2. **Purpose** — What does this skill do? (1-2 sentences)
 3. **Trigger phrases** — Natural language phrases that should activate it (English + Korean)
 4. **Modes** — How many operating modes? What does each do?
-5. **Tools needed** — Which Claude Code tools? (Read, Write, Edit, Bash, Glob, Grep, Task, WebSearch, WebFetch, AskUserQuestion)
+5. **Tools needed** — Which tools are needed? (Read, Write, Edit, Bash, Glob, Grep, Task/spawn_agent, WebSearch/WebFetch, user input)
 6. **Output format** — What should the final output look like?
 7. **Reference files** — Does the skill need reference documentation?
 
@@ -83,20 +152,31 @@ Before generating, read the relevant reference files to ensure best practices:
 - Read `references/anthropic-skills-guide/04-writing-instructions.md` for instruction quality
 - Read `references/anthropic-skills-guide/07-patterns.md` for common patterns
 
-Use the Read tool with the full path: `${pluginDir}/skills/skill-agent-writer/references/anthropic-skills-guide/{filename}`
+Use the local path beside this `SKILL.md`:
+`references/anthropic-skills-guide/{filename}`. In legacy Claude Code plugin
+installs, `${pluginDir}/skills/skill-agent-writer/references/...` may also be
+valid.
 
 ### Step 3: Generate via Agent
 
 Use the Task tool to launch the `skill-generator` agent with subagent_type `skill-agent-writer:skill-generator`. Pass the gathered requirements as the prompt.
 
-The agent will produce both SKILL.md and SKILL-ko.md content.
+The agent should produce `SKILL.md` and any requested bundled resources.
+Localized variants such as `SKILL-ko.md` are optional.
 
 ### Step 4: Write Files
 
-Use the Write tool to create both files:
+Use the Write tool to create the skill files:
 
-1. Write `SKILL.md` at the user's specified path (default: `.claude/skills/{name}/SKILL.md`)
-2. Write `SKILL-ko.md` at the same directory
+1. Write `SKILL.md` at the user's specified path.
+   - Default for Vercel-style collection repos: `skills/{name}/SKILL.md`
+   - Default for single-skill repos: `SKILL.md` at repo root
+   - Default for direct Claude Code installs: `.claude/skills/{name}/SKILL.md`
+2. Write `scripts/`, `references/`, or `assets/` only when the skill needs them.
+3. Write localized variants such as `SKILL-ko.md` only when requested or when
+   the existing project already uses them.
+4. If the user wants multi-agent availability, document or create symlinks from
+   `.agents/skills/{name}` to agent-specific skill directories.
 
 ### Step 5: Validate
 
